@@ -3,7 +3,7 @@ from store.core.config import settings
 
 
 class App(FastAPI):
-    def __init__(self, *args, **kwargs) ->None:
+    def __init__(self, *args, ** kwargs) ->None:
         super().__init__(*args,
                          **kwargs,
                          version = "0.0.1",
