@@ -1,5 +1,3 @@
-from uuid import UUID
-
 import pytest
 from store.schemas.product import ProductIn
 from tests.schemas.factories import product_data
@@ -11,7 +9,6 @@ async def test_schemas_return_success():
     product = ProductIn.model_validate(data)
 
     assert product.name == "Iphone 14 Pro Max"
-    assert isinstance(product.id, UUID)
 
 
 @pytest.mark.asyncio

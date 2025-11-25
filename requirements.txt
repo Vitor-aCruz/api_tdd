@@ -6,3 +6,4 @@ motor
 pytest
 pytest-asyncio
 pre-commit
+httpx
