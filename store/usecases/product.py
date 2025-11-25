@@ -31,11 +31,13 @@ class ProductUsecase:
         return [ProductOut(**item) async for item in self.collection.find()]
 
     async def update(self, id: UUID, body: ProductUpdate) -> ProductUpdateOut:
+        product = ProductUpdate(**body.model_dump(exclude_none=True))
         result = await self.collection.find_one_and_update(
             {"id": id},
-            {"$set": body.model_dump(exclude_none=True)},
+            {"$set": product.model_dump()},
             return_document=pymongo.ReturnDocument.AFTER,
         )
+        # criação model 14:24
         if not result:
             raise NotFoundException(message=f"Product not found with filter: {id}")
         return ProductUpdateOut(**result)

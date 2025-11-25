@@ -8,7 +8,7 @@ from store.schemas.base import BaseSchemaMixin, OutSchema
 class ProductBase(BaseModel):
     name: str = Field(..., description="Name of the product", max_length=100)
     quantity: int = Field(..., description="Quantity of the product in stock")
-    price: float = Field(..., description="Price of the product")
+    price: Decimal = Field(..., description="Price of the product")
     status: bool = Field(..., description="Status of the product")
 
 
@@ -27,13 +27,10 @@ def convert_decimal_128(v):
 Decimal_ = Annotated[Decimal, AfterValidator(convert_decimal_128)]
 
 
-class ProductUpdate(ProductBase):
-    quantity: Optional[int] = Field(
-        None, description="Quantity of the product in stock"
-    )
-    price: Optional[float] = Field(None, description="Price of the product")
-    status: Optional[bool] = Field(None, description="Status of the product")
+class ProductUpdate(BaseSchemaMixin):
+    quantity: Optional[int] = Field(None, description="Product quantity")
+    price: Optional[Decimal_] = Field(None, description="Product price")
+    status: Optional[bool] = Field(None, description="Product status")
 
 
-class ProductUpdateOut(ProductUpdate):
-    pass
+class ProductUpdateOut(ProductOut): ...
