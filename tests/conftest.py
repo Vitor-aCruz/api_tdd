@@ -2,10 +2,12 @@ from uuid import UUID
 import pytest
 import pytest_asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
+from store.controller.product import get_product_usecase
 from store.schemas.product import ProductIn, ProductUpdate
 from store.usecases.product import ProductUsecase
 from tests.schemas.factories import product_data, products_data
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
+from store.main import app
 
 
 @pytest.fixture(scope="function")
@@ -31,11 +33,25 @@ async def clear_collections(mongo_client):
 
 
 @pytest.fixture
-async def client() -> AsyncClient:
-    from store.main import app
+async def client(product_usecase):
 
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    product_usecase_instance = product_usecase
+
+    # Sobrescrevemos a dependência no FastAPI
+    app.dependency_overrides[get_product_usecase] = lambda: product_usecase_instance
+
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+    # Limpamos as dependências após o teste
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def products_url() -> str:
+    return "/products/"
 
 
 @pytest.fixture
@@ -74,6 +90,3 @@ def products_in():
 @pytest.fixture
 async def products_inserted(products_in, product_usecase):
     return [await product_usecase.create(body=product_in) for product_in in products_in]
-
-
-# Terminei no Crud 15:35
