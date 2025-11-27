@@ -10,45 +10,39 @@ from httpx import ASGITransport, AsyncClient
 from store.main import app
 
 
-@pytest.fixture(scope="function")
-def mongo_client():
+# ----------------------------------------------------------------------------
+# ✔️ CLIENTE MONGO PARA TESTES (ÚNICA VERSÃO CORRETA)
+# ----------------------------------------------------------------------------
+@pytest.fixture
+async def mongo_client():
     client = AsyncIOMotorClient(
-        "mongodb://localhost:27017/store-tdd", uuidRepresentation="standard"
+        "mongodb://localhost:27017/store-tdd-tests",
+        uuidRepresentation="standard",  # ⭐ importante
     )
+
+    db = client.get_database()
+    await db["products"].delete_many({})  # limpa antes dos testes
+
     yield client
     client.close()
 
 
+# ----------------------------------------------------------------------------
+# ✔️ LIMPA COLEÇÕES DEPOIS DE CADA TESTE
+# ----------------------------------------------------------------------------
 @pytest_asyncio.fixture(autouse=True)
 async def clear_collections(mongo_client):
     yield
-    # Usamos o mongo_client criado nesta sessão de teste, que está vivo
-    collection_names = await mongo_client.get_database(
-        "store"
-    ).list_collection_names()  # Especifique o nome do banco se necessário
-    for collection_name in collection_names:
-        if collection_name.startswith("system"):
-            continue
-        await mongo_client.get_database("store")[collection_name].delete_many({})
+    db = mongo_client.get_database()
+    collections = await db.list_collection_names()
+    for collection in collections:
+        if not collection.startswith("system"):
+            await db[collection].delete_many({})
 
 
-@pytest.fixture
-async def client(product_usecase):
-
-    product_usecase_instance = product_usecase
-
-    # Sobrescrevemos a dependência no FastAPI
-    app.dependency_overrides[get_product_usecase] = lambda: product_usecase_instance
-
-    transport = ASGITransport(app=app)
-
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
-    # Limpamos as dependências após o teste
-    app.dependency_overrides.clear()
-
-
+# ----------------------------------------------------------------------------
+# FIXTURES DE DADOS
+# ----------------------------------------------------------------------------
 @pytest.fixture
 def products_url() -> str:
     return "/products/"
@@ -66,7 +60,6 @@ def product_in(product_id):
 
 @pytest.fixture
 def product_usecase(mongo_client):
-    # AQUI ESTÁ O SEGREDO: Injetamos o cliente criado no teste dentro do Usecase
     return ProductUsecase(client=mongo_client)
 
 
@@ -77,9 +70,7 @@ def product_up(product_id):
 
 @pytest.fixture
 async def product_inserted(product_in, product_usecase):
-    return await product_usecase.create(
-        body=product_in
-    )  # Cria o produto no banco para os testes que precisam dele
+    return await product_usecase.create(body=product_in)
 
 
 @pytest.fixture
@@ -89,4 +80,21 @@ def products_in():
 
 @pytest.fixture
 async def products_inserted(products_in, product_usecase):
-    return [await product_usecase.create(body=product_in) for product_in in products_in]
+    return [await product_usecase.create(body=p) for p in products_in]
+
+
+# ----------------------------------------------------------------------------
+# ✔️ CLIENTE DE TESTES FASTAPI (COMPATÍVEL COM HTTPX NOVO)
+# ----------------------------------------------------------------------------
+@pytest.fixture
+async def client(mongo_client):
+    async def override_usecase():
+        return ProductUsecase(client=mongo_client)
+
+    app.dependency_overrides[get_product_usecase] = override_usecase
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+    app.dependency_overrides.clear()

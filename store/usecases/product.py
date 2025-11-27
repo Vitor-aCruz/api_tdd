@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import List
 from uuid import UUID
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
@@ -6,6 +7,7 @@ from store.core.exceptions import NotFoundException
 from store.db.mongo import db_client
 from store.models.product import ProductModel
 from store.schemas.product import ProductIn, ProductOut, ProductUpdate, ProductUpdateOut
+from bson.decimal128 import Decimal128
 
 
 class ProductUsecase:
@@ -28,18 +30,58 @@ class ProductUsecase:
         return ProductOut(**result)
 
     async def query(self) -> List[ProductOut]:
-        return [ProductOut(**item) async for item in self.collection.find()]
+        docs = []
+        cursor = self.collection.find()
+        async for item in cursor:
+
+            # Convert Decimal128 -> Decimal
+            if isinstance(item.get("price"), Decimal128):
+                item["price"] = item["price"].to_decimal()
+
+            # Defaults
+            if item.get("price") is None:
+                item["price"] = Decimal("0")
+
+            if item.get("status") is None:
+                item["status"] = True
+
+            docs.append(ProductOut(**item))
+
+        return docs
 
     async def update(self, id: UUID, body: ProductUpdate) -> ProductUpdateOut:
-        product = ProductUpdate(**body.model_dump(exclude_none=True))
+
+        data = body.model_dump(exclude_none=True)
+
+        # Fix: convert Decimal128 -> Decimal before creating the schema
+        for k, v in data.items():
+            if isinstance(v, Decimal128):
+                data[k] = v.to_decimal()
+
+        # Now build the validated schema
+        ProductUpdate(**data)  # valida mas não guarda
+
+        # Convert Decimal -> Decimal128 for DB
+        update_data = {}
+        for k, v in data.items():
+            if isinstance(v, Decimal):
+                update_data[k] = Decimal128(str(v))
+            else:
+                update_data[k] = v
+
         result = await self.collection.find_one_and_update(
             {"id": id},
-            {"$set": product.model_dump()},
+            {"$set": update_data},
             return_document=pymongo.ReturnDocument.AFTER,
         )
-        # criação model 14:24
+
         if not result:
             raise NotFoundException(message=f"Product not found with filter: {id}")
+
+        # Convert result for output
+        if isinstance(result.get("price"), Decimal128):
+            result["price"] = result["price"].to_decimal()
+
         return ProductUpdateOut(**result)
 
     async def delete(self, id: UUID):
@@ -54,4 +96,3 @@ class ProductUsecase:
 
 
 # Instância padrão para uso na aplicação (fora dos testes)
-product_usecase = ProductUsecase()
