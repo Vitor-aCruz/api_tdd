@@ -23,6 +23,15 @@ async def test_controller_create_should_return_success(client, products_url):
     }
 
 
+async def test_controller_create_should_return_bad_request(
+    client, products_url, product_inserted
+):
+    response = await client.post(products_url, json={})
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json() == {"detail": "Product already exists"}
+
+
 async def test_controller_get_should_return_success(
     client, products_url, product_inserted
 ):
