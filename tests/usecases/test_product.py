@@ -1,10 +1,8 @@
 from typing import List
 from uuid import UUID
 import pytest
-from store.schemas.product import ProductOut, ProductUpdateOut
-
-# NÃO importe 'product_usecase' do arquivo original.
-# O Pytest vai injetar a fixture que criamos no conftest.
+from store.core.exceptions import ProductAlreadyExistsError
+from store.schemas.product import ProductIn, ProductOut, ProductUpdateOut
 
 
 @pytest.mark.asyncio
@@ -14,6 +12,14 @@ async def test_usecase_create_should_return_success(product_usecase, product_in)
 
     assert isinstance(result, ProductOut)
     assert result.name == "Iphone 14 Pro Max"
+
+
+@pytest.mark.asyncio
+async def test_usecase_create_should_return_raise(product_usecase, products_inserted):
+    body = ProductIn(name="Iphone 11 Pro Max", quantity=50, price="7.500", status=True)
+
+    with pytest.raises(ProductAlreadyExistsError):
+        await product_usecase.create(body=body)
 
 
 @pytest.mark.asyncio

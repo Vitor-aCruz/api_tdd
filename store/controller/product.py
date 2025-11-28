@@ -3,7 +3,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path, status
 from pydantic import UUID4
 
 
-from store.core.exceptions import NotFoundException
+from store.core.exceptions import NotFoundException, ProductAlreadyExistsError
 from store.schemas.product import ProductIn, ProductOut, ProductUpdate
 from store.usecases.product import ProductUsecase
 
@@ -19,7 +19,10 @@ async def post_product(
     body: ProductIn = Body(...),
     usecase: ProductUsecase = Depends(get_product_usecase),
 ) -> ProductOut:
-    return await usecase.create(body)
+    try:
+        return await usecase.create(body)
+    except ProductAlreadyExistsError as exc:
+        raise HTTPException(status_code=409, detail=exc.message)
 
 
 @router.get("/{id}", status_code=200)

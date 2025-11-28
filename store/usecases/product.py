@@ -3,8 +3,9 @@ from typing import List
 from uuid import UUID
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 import pymongo
-from store.core.exceptions import NotFoundException
+from store.core.exceptions import NotFoundException, ProductAlreadyExistsError
 from store.db.mongo import db_client
+from store.models.product import ProductModel
 from store.schemas.product import ProductIn, ProductOut, ProductUpdate, ProductUpdateOut
 from bson.decimal128 import Decimal128
 
@@ -17,20 +18,25 @@ class ProductUsecase:
         self.database: AsyncIOMotorDatabase = self.client.get_database()
         self.collection = self.database.get_collection("products")
 
+    async def get_by_name(self, name: str):
+        return await self.collection.find_one({"name": name})
+
     async def create(self, body: ProductIn) -> ProductOut:
         # product_model = ProductModel(**body.model_dump())
         # await self.collection.insert_one(product_model.model_dump())
         # return ProductOut(**product_model.model_dump())
 
-        data = body.model_dump()
-        existing = await self.collection.find_one({"id": data["id"]})
+        # Verifica se já existe produto com o mesmo nome
+        existing = await self.get_by_name(body.name)
         if existing:
-            raise Exception("Product already exists")
-        try:
-            await self.collection.insert_one(data)
-            return ProductOut(**data)
-        except Exception as e:
-            raise Exception(e)
+            raise ProductAlreadyExistsError("Product already exists")
+
+        # Continua com o fluxo original:
+        product_model = ProductModel(**body.model_dump())
+
+        await self.collection.insert_one(product_model.model_dump())
+
+        return ProductOut(**product_model.model_dump())
 
     async def get(self, id: UUID) -> ProductOut:
         result = await self.collection.find_one({"id": id})

@@ -23,13 +23,38 @@ async def test_controller_create_should_return_success(client, products_url):
     }
 
 
-async def test_controller_create_should_return_bad_request(
-    client, products_url, product_inserted
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("products_inserted")
+async def test_controller_create_should_return_409_when_product_exists(
+    client, products_url
 ):
-    response = await client.post(products_url, json={})
+    response = await client.post(products_url, json=product_data())
+    content = response.json()
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json() == {"detail": "Product already exists"}
+    del content["created_at"]
+    del content["updated_at"]
+    del content["id"]
+
+    assert content == {
+        "name": "Iphone 14 Pro Max",
+        "quantity": 10,
+        "price": "8.500",
+        "status": True,
+    }
+
+    response = await client.post(products_url, json=content)
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert "product already exists" in response.json()["detail"].lower()
+
+
+# async def test_controller_create_should_return_bad_request(
+#     client, products_url, product_inserted
+# ):
+#     response = await client.post(products_url, json={})
+
+#     assert response.status_code == status.HTTP_400_BAD_REQUEST
+#     assert response.json() == {"detail": "Product already exists"}
 
 
 async def test_controller_get_should_return_success(

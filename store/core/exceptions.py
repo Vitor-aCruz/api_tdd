@@ -9,3 +9,7 @@ class BaseException(Exception):
 
 class NotFoundException(BaseException):
     message = "Not Found"
+
+
+class ProductAlreadyExistsError(BaseException):
+    message = "Product already exists"
